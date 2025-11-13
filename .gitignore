@@ -1,0 +1,21 @@
+# Ignorar ambiente virtual 
+.venv/ 
+venv/ 
+env/ 
+ECHO est  ativado.
+# Arquivos do Python 
+__pycache__/ 
+*.pyc 
+*.pyo 
+*.pyd 
+*.log 
+*.sqlite3 
+ECHO est  ativado.
+# Configura‡äes locais 
+.idea/ 
+.vscode/ 
+.DS_Store 
+ECHO est  ativado.
+# Jupyter Notebooks e cache 
+.ipynb_checkpoints/ 
+*.ipynb_convert/ 
