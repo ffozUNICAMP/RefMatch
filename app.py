@@ -58,5 +58,5 @@ st.markdown('&nbsp;&nbsp;')
 st.divider()
 
 st.markdown('''
-    Elaborado pelo [Sistema de Bibliotecas da Unicamp - SBU](https://www.sbu.unicamp.br/sbu/)  
+    Elaborado pelo [Sistema de Bibliotecas da Unicamp (SBU)](https://www.sbu.unicamp.br/sbu/)  
 ''')
