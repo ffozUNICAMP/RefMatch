@@ -7,7 +7,7 @@ from io import StringIO, BytesIO
 from pathlib import Path
 from rapidfuzz import process, fuzz
 from google import genai
-from google.genai import types
+from google.genai import types, errors
 import openpyxl
 
 
@@ -75,9 +75,41 @@ Retorne somente o CSV.
 """
 
 
+
 def extrair_referencias_pdf(pdf_bytes, api_key):
 
-    client = genai.Client(api_key=api_key)
+    # Ordem de preferência dos modelos
+    modelos = [
+        "gemini-3.8-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite"
+    ]
+
+    # Configuração de exponential backoff
+    retry_options = types.HttpRetryOptions(
+        attempts=5,
+        initial_delay=1.0,
+        max_delay=8.0,
+        exp_base=2.0,
+        jitter=0.0,
+        http_status_codes=[
+            408,
+            429,
+            500,
+            502,
+            503,
+            504
+        ]
+    )
+
+    # Inicialização do cliente
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            retry_options=retry_options
+        )
+    )
 
     contents = [
         types.Content(
@@ -92,15 +124,74 @@ def extrair_referencias_pdf(pdf_bytes, api_key):
         ),
     ]
 
-    response = client.models.generate_content(
-        model="gemini-3.8-flash",
-        contents=contents,
+    erros = []
+
+    # Tentativa sequencial dos modelos
+    for modelo in modelos:
+
+        try:
+
+            st.info(f"Processando com o modelo {modelo}...")
+
+            response = client.models.generate_content(
+                model=modelo,
+                contents=contents,
+            )
+
+            if response.text and response.text.strip():
+
+                st.success(
+                    f"Extração realizada com sucesso usando {modelo}."
+                )
+
+                return response.text
+
+            erros.append(
+                f"{modelo}: resposta vazia."
+            )
+
+        except errors.APIError as e:
+
+            codigo = getattr(e, "code", None)
+
+            # Erros de autenticação: não adianta trocar de modelo
+            if codigo in [401, 403]:
+
+                raise RuntimeError(
+                    "Falha de autenticação na API do Gemini. "
+                    "Verifique sua API Key. "
+                    f"Detalhes: {e}"
+                ) from e
+
+            # Erros que justificam tentar outro modelo
+            if codigo in [
+                404,
+                408,
+                429,
+                500,
+                502,
+                503,
+                504
+            ]:
+
+                erros.append(
+                    f"{modelo}: erro HTTP {codigo} - {e}"
+                )
+
+                continue
+
+            # Outros erros não devem ser mascarados
+            raise
+
+    # Nenhum modelo conseguiu processar
+    detalhes = "\n".join(erros)
+
+    raise RuntimeError(
+        "Não foi possível extrair as referências com nenhum "
+        "dos modelos disponíveis.\n\n"
+        f"Detalhes:\n{detalhes}"
     )
 
-    if not response.text:
-        raise ValueError("O Gemini não retornou referências.")
-
-    return response.text
 
 
 def converter_csv(resultado):
